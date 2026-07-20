@@ -187,7 +187,7 @@ function buildAxisTop(
     const next = step(cursor);
     // Clip the period to the visible window.
     const segStartISO = maxISO([toISO(cursor), rangeStart]);
-    const segEndISO = minISO([toISO(addDaysISO(toISO(next), -1)), rangeEnd]);
+    const segEndISO = minISO([addDaysISO(toISO(next), -1), rangeEnd]);
     const x = daysBetween(rangeStart, segStartISO) * pxPerDay;
     const width = spanDays(segStartISO, segEndISO) * pxPerDay;
     // Guard against zero-width periods outside the window.

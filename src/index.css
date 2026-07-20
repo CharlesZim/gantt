@@ -1,0 +1,97 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Sensible defaults; overwritten at runtime by applyTheme(). */
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --grid: #ececea;
+  --grid-strong: #dcdcd8;
+  --text: #1f2430;
+  --text-muted: #8a8f9c;
+  --today: #ef4444;
+  --weekend: #f4f4f1;
+  --zebra: #fafafa;
+  --bar-stroke: none;
+  --font: "Inter", system-ui, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Smooth theme transitions on chrome, but never during a drag. */
+.theme-transition,
+.theme-transition * {
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+/* Hide number-input spinners in the date fields for a cleaner look. */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.5;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.9;
+}
+
+/* Gantt bar interactions (SVG). */
+.gantt-bar-rect {
+  transition:
+    filter 140ms ease,
+    opacity 140ms ease;
+}
+.gantt-bar-group:hover .gantt-bar-rect {
+  filter: brightness(1.04);
+}
+.gantt-handle {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.gantt-bar-group:hover .gantt-handle {
+  opacity: 1;
+}
+.gantt-row-hover {
+  transition: background-color 140ms ease;
+}
+
+/* Export preview thumbnail scales the standalone SVG to fit. */
+.export-preview svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Thin, unobtrusive scrollbars in the chart area. */
+.thin-scroll::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--grid-strong);
+  border-radius: 999px;
+  border: 3px solid var(--surface);
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
