@@ -115,7 +115,11 @@ export default function App() {
         theme={theme}
         onTitleChange={setTitle}
         onUnitChange={setUnit}
-        onThemeChange={setThemeId}
+        onToggleDark={() =>
+          setThemeId(
+            theme.id === "dark" || theme.id === "blueprint" ? "light" : "dark",
+          )
+        }
         onExport={() => setExportOpen(true)}
       />
 

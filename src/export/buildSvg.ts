@@ -10,6 +10,7 @@ import {
   PAD_DAYS,
   ROW_HEIGHT,
 } from "../core/config";
+import { resolveTaskColor } from "../core/color";
 import { parseISO } from "../core/dates";
 import { computeLayout, pxPerDayForUnit } from "../core/layout";
 import type { GanttState } from "../core/types";
@@ -113,7 +114,7 @@ export function buildSvg(state: GanttState, theme: Theme, options: BuildSvgOptio
   // Bars.
   layout.bars.forEach((bar, i) => {
     const task = ordered[i];
-    const fill = theme.barPalette[task.colorKey % theme.barPalette.length];
+    const fill = resolveTaskColor(task, theme.barPalette);
     const r = Math.min(theme.barRadius, bar.height / 2);
     const strokeAttr =
       c.barStroke === "none" ? "" : ` stroke="${c.barStroke}" stroke-width="1"`;
@@ -168,7 +169,7 @@ export function buildSvg(state: GanttState, theme: Theme, options: BuildSvgOptio
   );
   ordered.forEach((task, i) => {
     const y = AXIS_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
-    const fill = theme.barPalette[task.colorKey % theme.barPalette.length];
+    const fill = resolveTaskColor(task, theme.barPalette);
     labels.push(`<circle cx="5" cy="${y}" r="4" fill="${fill}"/>`);
     labels.push(
       `<text x="16" y="${y - 6}" fill="${c.text}" font-size="13" font-weight="600" dominant-baseline="central">${esc(truncateLabel(task.name || "Sans titre", LABEL_W - 16, 7.2))}</text>`,

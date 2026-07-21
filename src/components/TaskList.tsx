@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { AXIS_HEIGHT, ROW_HEIGHT, TASK_LIST_WIDTH } from "../core/config";
+import { resolveTaskColor } from "../core/color";
+import { AXIS_HEIGHT, ROW_HEIGHT } from "../core/config";
 import type { Task } from "../core/types";
 import type { Theme } from "../themes/types";
+import { ColorPicker } from "./ColorPicker";
 
 interface TaskListProps {
   tasks: Task[]; // already ordered
@@ -32,20 +34,20 @@ export function TaskList({
 
   return (
     <div
-      className="flex h-full flex-col border-r"
-      style={{ width: TASK_LIST_WIDTH, minWidth: TASK_LIST_WIDTH, borderColor: c.gridLine, background: c.surface }}
+      className="flex h-full w-[176px] shrink-0 flex-col border-r sm:w-[280px]"
+      style={{ borderColor: c.gridLine, background: c.surface }}
     >
       {/* Header aligned with the time axis. */}
       <div
-        className="flex items-center justify-between px-4"
+        className="flex items-center justify-between gap-2 px-3 sm:px-4"
         style={{ height: AXIS_HEIGHT, borderBottom: `1px solid ${c.gridLineStrong}` }}
       >
-        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.textMuted }}>
+        <span className="truncate text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.textMuted }}>
           Tâches · {tasks.length}
         </span>
         <button
           onClick={onAdd}
-          className="rounded-md px-2.5 py-1 text-xs font-semibold text-white transition-transform active:scale-95"
+          className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-semibold text-white transition-transform active:scale-95"
           style={{ background: theme.barPalette[0] }}
         >
           + Tâche
@@ -96,7 +98,12 @@ function TaskRow({
   const c = theme.colors;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.name);
+  const [pickerRect, setPickerRect] = useState<DOMRect | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dotRef = useRef<HTMLButtonElement>(null);
+
+  const dark = theme.id === "dark" || theme.id === "blueprint";
+  const resolvedColor = resolveTaskColor(task, theme.barPalette);
 
   useEffect(() => {
     if (autoFocus) {
@@ -108,7 +115,6 @@ function TaskRow({
   useEffect(() => {
     if (editing) {
       setDraft(task.name);
-      // Focus after paint.
       requestAnimationFrame(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -122,13 +128,9 @@ function TaskRow({
     setEditing(false);
   };
 
-  const cycleColor = () => {
-    onUpdate({ colorKey: (task.colorKey + 1) % theme.barPalette.length });
-  };
-
   return (
     <div
-      className="gantt-row-hover group relative flex flex-col justify-center px-4"
+      className="gantt-row-hover group relative flex flex-col justify-center px-3 sm:px-4"
       style={{
         height: ROW_HEIGHT,
         borderBottom: `1px solid ${c.gridLine}`,
@@ -138,13 +140,14 @@ function TaskRow({
     >
       <div className="flex items-center gap-2">
         <button
+          ref={dotRef}
           onClick={(e) => {
             e.stopPropagation();
-            cycleColor();
+            setPickerRect(dotRef.current?.getBoundingClientRect() ?? null);
           }}
           title="Changer la couleur"
-          className="h-3 w-3 shrink-0 rounded-full ring-1 ring-black/10 transition-transform hover:scale-110"
-          style={{ background: theme.barPalette[task.colorKey % theme.barPalette.length] }}
+          className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-black/10 transition-transform hover:scale-110"
+          style={{ background: resolvedColor }}
         />
         {editing ? (
           <input
@@ -164,7 +167,7 @@ function TaskRow({
           />
         ) : (
           <button
-            className="truncate text-left text-sm font-medium"
+            className="min-w-0 flex-1 truncate text-left text-sm font-medium"
             style={{ color: task.name ? c.text : c.textMuted }}
             onClick={(e) => {
               e.stopPropagation();
@@ -182,24 +185,25 @@ function TaskRow({
             onRemove();
           }}
           title="Supprimer"
-          className="ml-auto hidden shrink-0 rounded p-1 text-muted transition-colors hover:text-red-500 group-hover:block"
+          className="ml-auto shrink-0 rounded p-1 opacity-0 transition-opacity hover:text-red-500 focus:opacity-100 group-hover:opacity-100"
           style={{ color: c.textMuted }}
+          aria-label="Supprimer la tâche"
         >
           <TrashIcon />
         </button>
       </div>
 
-      <div className="mt-1 flex items-center gap-1.5">
+      <div className="mt-1 flex items-center gap-1">
         <input
           type="date"
           value={task.start}
           max={task.end}
           onChange={(e) => e.target.value && onUpdate({ start: e.target.value })}
           onClick={(e) => e.stopPropagation()}
-          className="rounded bg-transparent px-1 py-0.5 text-[11px] tabular-nums outline-none"
-          style={{ color: c.textMuted, colorScheme: theme.id === "dark" || theme.id === "blueprint" ? "dark" : "light" }}
+          className="min-w-0 flex-1 rounded bg-transparent py-0.5 text-[10px] tabular-nums outline-none sm:text-[11px]"
+          style={{ color: c.textMuted, colorScheme: dark ? "dark" : "light" }}
         />
-        <span className="text-[11px]" style={{ color: c.textMuted }}>
+        <span className="shrink-0 text-[11px]" style={{ color: c.textMuted }}>
           →
         </span>
         <input
@@ -208,10 +212,26 @@ function TaskRow({
           min={task.start}
           onChange={(e) => e.target.value && onUpdate({ end: e.target.value })}
           onClick={(e) => e.stopPropagation()}
-          className="rounded bg-transparent px-1 py-0.5 text-[11px] tabular-nums outline-none"
-          style={{ color: c.textMuted, colorScheme: theme.id === "dark" || theme.id === "blueprint" ? "dark" : "light" }}
+          className="min-w-0 flex-1 rounded bg-transparent py-0.5 text-[10px] tabular-nums outline-none sm:text-[11px]"
+          style={{ color: c.textMuted, colorScheme: dark ? "dark" : "light" }}
         />
       </div>
+
+      {pickerRect && (
+        <ColorPicker
+          anchorRect={pickerRect}
+          palette={theme.barPalette}
+          currentColor={resolvedColor}
+          isCustom={!!task.color}
+          theme={theme}
+          onPickPreset={(i) => {
+            onUpdate({ colorKey: i, color: undefined });
+            setPickerRect(null);
+          }}
+          onPickCustom={(hex) => onUpdate({ color: hex })}
+          onClose={() => setPickerRect(null)}
+        />
+      )}
     </div>
   );
 }

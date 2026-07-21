@@ -38,7 +38,7 @@ export function GanttBar({
     <g
       className="gantt-bar-group"
       onPointerDown={onSelect}
-      style={{ cursor: dragging ? "grabbing" : "grab" }}
+      style={{ cursor: dragging ? "grabbing" : "grab", touchAction: "none" }}
     >
       {selected && (
         <rect

@@ -7,6 +7,7 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { resolveTaskColor } from "../core/color";
 import { ROW_HEIGHT } from "../core/config";
 import { addDaysISO, daysBetween, parseISO, spanDays } from "../core/dates";
 import type { LayoutResult } from "../core/layout";
@@ -177,7 +178,6 @@ export function GanttChart({
         width={totalWidth}
         height={svgHeight}
         className="block"
-        style={{ touchAction: "none" }}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) onSelect(null);
         }}
@@ -270,7 +270,7 @@ export function GanttChart({
               key={task.id}
               bar={rendered}
               name={task.name}
-              fill={theme.barPalette[task.colorKey % theme.barPalette.length]}
+              fill={resolveTaskColor(task, theme.barPalette)}
               stroke={c.barStroke}
               radius={theme.barRadius}
               selected={task.id === selectedId}

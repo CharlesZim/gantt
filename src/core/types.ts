@@ -10,8 +10,10 @@ export interface Task {
   start: ISODate;
   /** Inclusive end date; always >= start (minimum span is 1 day). */
   end: ISODate;
-  /** Index into the active theme's bar palette. */
+  /** Index into the active theme's bar palette (used when `color` is unset). */
   colorKey: number;
+  /** Optional explicit bar color (hex). Overrides the theme palette when set. */
+  color?: string;
   /** Vertical display order (0-based). */
   order: number;
 }

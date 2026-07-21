@@ -54,6 +54,13 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 input[type="date"]::-webkit-calendar-picker-indicator:hover {
   opacity: 0.9;
 }
+/* On phones, drop the calendar glyph to make room for the full date;
+   tapping the field still opens the native picker. */
+@media (max-width: 639px) {
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    display: none;
+  }
+}
 
 /* Gantt bar interactions (SVG). */
 .gantt-bar-rect {
