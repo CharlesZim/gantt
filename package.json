@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "fonts:build": "node scripts/build-pdf-fonts.mjs",
+    "predev": "node scripts/build-pdf-fonts.mjs",
+    "prebuild": "node scripts/build-pdf-fonts.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.1.0",

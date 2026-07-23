@@ -1,132 +1,158 @@
 import type { Theme } from "./types";
 
-// Four distinct, polished themes. The active theme writes CSS variables on
-// :root (see applyTheme) so Tailwind classes and inline SVG stay in sync.
+// Four themes over ONE brand color system.
+//
+// The bar palette is deliberately shared: identity color follows the task, so
+// two themes must never repaint the same task differently. What a theme changes
+// is surface, typography and shape — not series identity.
+//
+// The two palettes below were produced by snapping the brand gradient
+// (amber -> orange -> magenta) onto a categorical ramp and validating them:
+// OKLCH lightness band, chroma floor, protan/deutan/tritan adjacent separation
+// (worst pair dE 12.6 light / 12.2 dark, target >= 8), normal-vision floor and
+// >= 3:1 contrast against the theme surface. Slots 1-2 carry the brand hues;
+// the rest step around the wheel at matched lightness so the set still reads
+// warm. The ORDER is the safety mechanism — never re-sort or cycle it.
 
-const INTER = "'Inter', system-ui, -apple-system, sans-serif";
-const SERIF = "'Georgia', 'Times New Roman', serif";
-const MONO = "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace";
+const SANS = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
+const SERIF = "Georgia, 'Iowan Old Style', 'Times New Roman', serif";
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+/** Categorical bar palette for light surfaces. Fixed order. */
+export const LIGHT_PALETTE = [
+  "#d9257e", // 1 magenta  (brand)
+  "#c97a10", // 2 amber    (brand)
+  "#2f7fd4", // 3 blue
+  "#e2603b", // 4 coral
+  "#0f9d8f", // 5 teal
+  "#7c4bd0", // 6 violet
+  "#4aa32a", // 7 green
+  "#3f6ea8", // 8 indigo
+];
+
+/** Categorical bar palette for dark surfaces. Own steps, not a flip. */
+export const DARK_PALETTE = [
+  "#e83f8e", // 1 magenta  (brand)
+  "#bf8016", // 2 amber    (brand)
+  "#4a8ae0", // 3 blue
+  "#e2673f", // 4 coral
+  "#12a692", // 5 teal
+  "#9673ec", // 6 violet
+  "#4da22c", // 7 green
+  "#5f8fd0", // 8 indigo
+];
+
+/** Brand gradient stops, used for the logo and accent fills. */
+export const BRAND_GRADIENT = ["#f5a623", "#f0762e", "#e5187f"] as const;
 
 export const themes: Theme[] = [
   {
     id: "light",
-    name: "Clair minimal",
-    fontFamily: INTER,
+    name: "Clair",
+    fontKind: "sans",
+    fontFamily: SANS,
     barRadius: 7,
     zebra: false,
     weekendShade: true,
+    dark: false,
     colors: {
-      background: "#f7f7f5",
-      surface: "#ffffff",
-      gridLine: "#ececea",
-      gridLineStrong: "#dcdcd8",
-      text: "#1f2430",
-      textMuted: "#8a8f9c",
-      todayMarker: "#ef4444",
-      weekendBand: "#f4f4f1",
+      background: "#faf7f4",
+      surface: "#fffcf9",
+      gridLine: "#efe8e2",
+      gridLineStrong: "#ded4cc",
+      text: "#241d21",
+      textMuted: "#8b7f85",
+      todayMarker: "#e11d48",
+      weekendBand: "#f6f1ec",
       barStroke: "none",
-      zebra: "#fafafa",
+      zebra: "#fdf9f5",
+      accent: "#d9257e",
+      accentAlt: "#f0a92b",
+      onAccent: "#ffffff",
+      link: "#a2959c",
     },
-    barPalette: [
-      "#6366f1",
-      "#0ea5e9",
-      "#10b981",
-      "#f59e0b",
-      "#ef4444",
-      "#ec4899",
-      "#8b5cf6",
-      "#14b8a6",
-    ],
+    barPalette: LIGHT_PALETTE,
   },
   {
     id: "dark",
     name: "Sombre",
-    fontFamily: INTER,
+    fontKind: "sans",
+    fontFamily: SANS,
     barRadius: 7,
     zebra: false,
     weekendShade: true,
+    dark: true,
     colors: {
-      background: "#0f1115",
-      surface: "#171a21",
-      gridLine: "#242833",
-      gridLineStrong: "#333947",
-      text: "#eef1f7",
-      textMuted: "#7d8494",
-      todayMarker: "#f87171",
-      weekendBand: "#1b1f28",
+      background: "#120f15",
+      surface: "#17141b",
+      gridLine: "#282331",
+      gridLineStrong: "#3b3446",
+      text: "#f3eef4",
+      textMuted: "#8d8395",
+      todayMarker: "#fb5c7d",
+      weekendBand: "#1d1924",
       barStroke: "none",
-      zebra: "#1c202a",
+      zebra: "#1c1823",
+      accent: "#e83f8e",
+      accentAlt: "#f2b544",
+      onAccent: "#ffffff",
+      link: "#6e6579",
     },
-    barPalette: [
-      "#818cf8",
-      "#38bdf8",
-      "#34d399",
-      "#fbbf24",
-      "#fb7185",
-      "#f472b6",
-      "#a78bfa",
-      "#2dd4bf",
-    ],
+    barPalette: DARK_PALETTE,
   },
   {
     id: "pastel",
-    name: "Pastel",
+    name: "Papier",
+    fontKind: "serif",
     fontFamily: SERIF,
     barRadius: 12,
     zebra: true,
     weekendShade: true,
+    dark: false,
     colors: {
-      background: "#fdf6f0",
-      surface: "#fffaf5",
-      gridLine: "#f0e4d8",
-      gridLineStrong: "#e5d3c2",
-      text: "#5b4636",
-      textMuted: "#a89484",
-      todayMarker: "#e07a5f",
-      weekendBand: "#f7ede2",
-      barStroke: "#ffffff",
-      zebra: "#fbf2e9",
+      background: "#fbf5ec",
+      surface: "#fffaf2",
+      gridLine: "#f0e5d6",
+      gridLineStrong: "#e0d0bb",
+      text: "#33281f",
+      textMuted: "#94836f",
+      todayMarker: "#c2410c",
+      weekendBand: "#f7efe3",
+      barStroke: "#fffaf2",
+      zebra: "#fbf4ea",
+      accent: "#b8336a",
+      accentAlt: "#d98324",
+      onAccent: "#ffffff",
+      link: "#b2a08a",
     },
-    barPalette: [
-      "#f2a9a0",
-      "#f6c28b",
-      "#f7dba7",
-      "#b8d8ba",
-      "#a7c7d9",
-      "#c9b6e4",
-      "#e8a5c4",
-      "#94cbbb",
-    ],
+    barPalette: LIGHT_PALETTE,
   },
   {
     id: "blueprint",
-    name: "Blueprint",
+    name: "Encre",
+    fontKind: "mono",
     fontFamily: MONO,
     barRadius: 4,
     zebra: false,
     weekendShade: false,
+    dark: true,
     colors: {
-      background: "#0b1f3a",
-      surface: "#0e2647",
-      gridLine: "#1c3a63",
-      gridLineStrong: "#2f5488",
-      text: "#e8f0ff",
-      textMuted: "#7fa0c8",
-      todayMarker: "#ffd166",
-      weekendBand: "#0c2140",
-      barStroke: "#9dc3ff",
-      zebra: "#0d2342",
+      background: "#171021",
+      surface: "#1d1429",
+      gridLine: "#2e2140",
+      gridLineStrong: "#443056",
+      text: "#efe6f7",
+      textMuted: "#9a86ad",
+      todayMarker: "#ffc861",
+      weekendBand: "#20172d",
+      barStroke: "#3a2a4d",
+      zebra: "#211830",
+      accent: "#e83f8e",
+      accentAlt: "#f5a623",
+      onAccent: "#ffffff",
+      link: "#6b5580",
     },
-    barPalette: [
-      "#5b9dff",
-      "#7fb2ff",
-      "#63c7d6",
-      "#8ad0a8",
-      "#c4b56b",
-      "#d68f8f",
-      "#a99bd6",
-      "#6fc0b3",
-    ],
+    barPalette: DARK_PALETTE,
   },
 ];
 
@@ -134,6 +160,25 @@ export const DEFAULT_THEME_ID = "light";
 
 export function getTheme(id: string): Theme {
   return themes.find((t) => t.id === id) ?? themes[0];
+}
+
+/**
+ * The counterpart theme when toggling light/dark, preserving the "flavour"
+ * (plain vs. textured) the user already chose.
+ */
+export function counterpartThemeId(id: string): string {
+  switch (id) {
+    case "light":
+      return "dark";
+    case "dark":
+      return "light";
+    case "pastel":
+      return "blueprint";
+    case "blueprint":
+      return "pastel";
+    default:
+      return "dark";
+  }
 }
 
 /** Write the theme's colors as CSS variables on the given element (default :root). */
@@ -150,6 +195,10 @@ export function applyTheme(theme: Theme, el: HTMLElement = document.documentElem
   set("--weekend", c.weekendBand);
   set("--zebra", c.zebra);
   set("--bar-stroke", c.barStroke);
+  set("--accent", c.accent);
+  set("--accent-alt", c.accentAlt);
+  set("--on-accent", c.onAccent);
+  set("--link", c.link);
   set("--font", theme.fontFamily);
-  set("color-scheme", theme.id === "dark" || theme.id === "blueprint" ? "dark" : "light");
+  set("color-scheme", theme.dark ? "dark" : "light");
 }

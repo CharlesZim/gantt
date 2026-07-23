@@ -12,16 +12,34 @@ export interface ThemeColors {
   weekendBand: string;
   barStroke: string; // bar outline, or "none"
   zebra: string; // tint for alternating rows
+  /** Brand accent: buttons, active states, focus rings. */
+  accent: string;
+  /** Second stop of the brand gradient (accent -> accentAlt). */
+  accentAlt: string;
+  /** Ink used on top of a solid `accent` fill. */
+  onAccent: string;
+  /** Dependency arrow / link color. */
+  link: string;
 }
+
+/** Which built-in font stack a theme uses. Drives export font embedding. */
+export type FontKind = "sans" | "serif" | "mono";
 
 export interface Theme {
   id: string;
   name: string;
+  fontKind: FontKind;
   fontFamily: string;
   barRadius: number; // px
   zebra: boolean;
   weekendShade: boolean;
+  /** True for themes designed against a dark surface. */
+  dark: boolean;
   colors: ThemeColors;
-  /** Bar fill colors; a task's colorKey indexes into this palette. */
+  /**
+   * Bar fill colors; a task's colorKey indexes into this palette.
+   * Fixed order — never cycled or re-sorted; the order is what keeps
+   * adjacent bars distinguishable under color-vision deficiency.
+   */
   barPalette: string[];
 }

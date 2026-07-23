@@ -1,19 +1,22 @@
-import { format } from "date-fns";
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { resolveTaskColor } from "../core/color";
 import { ROW_HEIGHT } from "../core/config";
-import { addDaysISO, daysBetween, parseISO, spanDays } from "../core/dates";
+import { addDaysISO, daysBetween, spanDays } from "../core/dates";
+import { durationLabel, shortDate } from "../core/format";
 import type { LayoutResult } from "../core/layout";
-import type { Task } from "../core/types";
+import { isMilestone, taskProgress, type Task } from "../core/types";
 import type { Theme } from "../themes/types";
 import { GanttBar, type DragMode } from "./GanttBar";
+import { withAlpha } from "./util";
 
 interface GanttChartProps {
   tasks: Task[];
@@ -21,6 +24,8 @@ interface GanttChartProps {
   theme: Theme;
   pxPerDay: number;
   selectedId: string | null;
+  /** Horizontal scroll window, used to cull off-screen grid lines. */
+  viewport: { left: number; width: number };
   onSelect: (id: string | null) => void;
   onMoveBar: (id: string, deltaDays: number) => void;
   onResizeStart: (id: string, newStart: string) => void;
@@ -41,9 +46,8 @@ interface Preview {
   end: string;
 }
 
-function fmt(iso: string): string {
-  return format(parseISO(iso), "d MMM");
-}
+/** Extra px rendered either side of the viewport so scrolling stays smooth. */
+const CULL_MARGIN = 400;
 
 export function GanttChart({
   tasks,
@@ -51,13 +55,14 @@ export function GanttChart({
   theme,
   pxPerDay,
   selectedId,
+  viewport,
   onSelect,
   onMoveBar,
   onResizeStart,
   onResizeEnd,
 }: GanttChartProps) {
   const c = theme.colors;
-  const { bars, ticks, weekendBands, todayX, totalWidth, totalHeight, rangeStart } = layout;
+  const { bars, links, ticks, weekendBands, todayX, totalWidth, totalHeight, rangeStart } = layout;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -72,6 +77,16 @@ export function GanttChart({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Only the visible slice of the (potentially very wide) grid is rendered.
+  const visible = useMemo(() => {
+    const min = viewport.left - CULL_MARGIN;
+    const max = viewport.left + viewport.width + CULL_MARGIN;
+    return {
+      ticks: ticks.filter((t) => t.x >= min && t.x <= max),
+      bands: weekendBands.filter((b) => b.x + b.width >= min && b.x <= max),
+    };
+  }, [ticks, weekendBands, viewport.left, viewport.width]);
 
   const dragRef = useRef<DragState | null>(null);
   const previewRef = useRef<Preview | null>(null);
@@ -141,17 +156,36 @@ export function GanttChart({
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, [active, pxPerDay, onMoveBar, onResizeStart, onResizeEnd]);
 
-  // Empty state.
+  /**
+   * Keyboard editing on a focused bar:
+   *   arrows        move by a day (shift: a week)
+   *   alt+arrows    stretch / shrink the end date
+   */
+  const handleBarKey = useCallback(
+    (e: ReactKeyboardEvent, task: Task) => {
+      const step = e.shiftKey ? 7 : 1;
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      e.preventDefault();
+      const delta = e.key === "ArrowLeft" ? -step : step;
+      if (e.altKey && !isMilestone(task)) {
+        onResizeEnd(task.id, addDaysISO(task.end, delta));
+      } else {
+        onMoveBar(task.id, delta);
+      }
+    },
+    [onMoveBar, onResizeEnd],
+  );
+
   if (tasks.length === 0) {
-    return (
-      <div ref={containerRef} className="h-full w-full" style={{ background: c.surface }} />
-    );
+    return <div ref={containerRef} className="h-full w-full" style={{ background: c.surface }} />;
   }
 
   const tooltipBar =
@@ -160,8 +194,7 @@ export function GanttChart({
       const x = daysBetween(rangeStart, preview.start) * pxPerDay;
       const width = spanDays(preview.start, preview.end) * pxPerDay;
       const bar = bars.find((b) => b.taskId === preview.taskId);
-      const y = bar ? bar.y : 0;
-      return { x, width, y };
+      return { x, width, y: bar ? bar.y : 0 };
     })();
 
   return (
@@ -170,7 +203,6 @@ export function GanttChart({
       className="min-h-full w-full"
       style={{ background: c.surface, width: totalWidth }}
       onPointerDown={(e) => {
-        // Click on empty chart background clears selection.
         if (e.target === e.currentTarget) onSelect(null);
       }}
     >
@@ -182,11 +214,25 @@ export function GanttChart({
           if (e.target === e.currentTarget) onSelect(null);
         }}
       >
+        <defs>
+          <marker
+            id="dep-arrow"
+            viewBox="0 0 8 8"
+            refX="7"
+            refY="4"
+            markerWidth="7"
+            markerHeight="7"
+            orient="auto-start-reverse"
+          >
+            <path d="M0,0 L8,4 L0,8 z" fill={c.link} />
+          </marker>
+        </defs>
+
         {/* Weekend bands (day view). */}
         {theme.weekendShade &&
-          weekendBands.map((band, i) => (
+          visible.bands.map((band, i) => (
             <rect
-              key={`wk-${i}`}
+              key={`wk-${band.x}-${i}`}
               x={band.x}
               y={0}
               width={band.width}
@@ -197,10 +243,10 @@ export function GanttChart({
 
         {/* Zebra rows. */}
         {theme.zebra &&
-          tasks.map((_, i) =>
+          tasks.map((t, i) =>
             i % 2 === 1 ? (
               <rect
-                key={`zebra-${i}`}
+                key={`zebra-${t.id}`}
                 x={0}
                 y={i * ROW_HEIGHT}
                 width={totalWidth}
@@ -210,25 +256,24 @@ export function GanttChart({
             ) : null,
           )}
 
-        {/* Selection row highlight. */}
+        {/* Selection row highlight — accent, not the today color. */}
         {tasks.map((t, i) =>
           t.id === selectedId ? (
             <rect
-              key={`sel-${i}`}
+              key={`sel-${t.id}`}
               x={0}
               y={i * ROW_HEIGHT}
               width={totalWidth}
               height={ROW_HEIGHT}
-              fill={c.todayMarker}
-              opacity={0.06}
+              fill={withAlpha(c.accent, 0.08)}
             />
           ) : null,
         )}
 
         {/* Vertical grid lines. */}
-        {ticks.map((tick, i) => (
+        {visible.ticks.map((tick) => (
           <line
-            key={`grid-${i}`}
+            key={`grid-${tick.date}`}
             x1={tick.x}
             y1={0}
             x2={tick.x}
@@ -242,17 +287,25 @@ export function GanttChart({
         {/* Today marker. */}
         {todayX !== null && (
           <g>
-            <line
-              x1={todayX}
-              y1={0}
-              x2={todayX}
-              y2={svgHeight}
-              stroke={c.todayMarker}
-              strokeWidth={2}
-            />
+            <line x1={todayX} y1={0} x2={todayX} y2={svgHeight} stroke={c.todayMarker} strokeWidth={2} />
             <circle cx={todayX} cy={6} r={4} fill={c.todayMarker} />
           </g>
         )}
+
+        {/* Dependency arrows, under the bars. */}
+        <g style={{ pointerEvents: "none" }}>
+          {links.map((link) => (
+            <polyline
+              key={`${link.fromId}->${link.toId}`}
+              points={link.points.map((p) => `${p.x},${p.y}`).join(" ")}
+              fill="none"
+              stroke={c.link}
+              strokeWidth={1.5}
+              strokeLinejoin="round"
+              markerEnd="url(#dep-arrow)"
+            />
+          ))}
+        </g>
 
         {/* Bars. */}
         {bars.map((bar, i) => {
@@ -262,7 +315,12 @@ export function GanttChart({
             ? {
                 ...bar,
                 x: daysBetween(rangeStart, preview.start) * pxPerDay,
-                width: spanDays(preview.start, preview.end) * pxPerDay,
+                width: bar.milestone
+                  ? bar.width
+                  : spanDays(preview.start, preview.end) * pxPerDay,
+                progressWidth: bar.milestone
+                  ? 0
+                  : spanDays(preview.start, preview.end) * pxPerDay * taskProgress(task),
               }
             : bar;
           return (
@@ -271,11 +329,12 @@ export function GanttChart({
               bar={rendered}
               name={task.name}
               fill={resolveTaskColor(task, theme.barPalette)}
-              stroke={c.barStroke}
-              radius={theme.barRadius}
+              theme={theme}
               selected={task.id === selectedId}
               dragging={isPreviewing}
+              ariaLabel={describeTask(task)}
               onSelect={() => onSelect(task.id)}
+              onKeyDown={(e) => handleBarKey(e, task)}
               onPointerDown={(e, mode) => beginDrag(e, task.id, mode)}
             />
           );
@@ -287,16 +346,28 @@ export function GanttChart({
             x={tooltipBar.x}
             width={tooltipBar.width}
             y={tooltipBar.y}
-            label={`${fmt(preview.start)} → ${fmt(preview.end)} · ${spanDays(
+            label={`${shortDate(preview.start)} → ${shortDate(preview.end)} · ${durationLabel(
               preview.start,
               preview.end,
-            )} j`}
+            )}`}
             theme={theme}
           />
         )}
       </svg>
     </div>
   );
+}
+
+/** Screen-reader / tooltip description of a task. */
+function describeTask(task: Task): string {
+  const name = task.name.trim() || "Sans titre";
+  if (isMilestone(task)) return `Jalon « ${name} », ${shortDate(task.start)}`;
+  const progress = taskProgress(task);
+  const pct = progress > 0 ? `, ${Math.round(progress * 100)} % terminé` : "";
+  return `Tâche « ${name} », du ${shortDate(task.start)} au ${shortDate(task.end)}, ${durationLabel(
+    task.start,
+    task.end,
+  )}${pct}`;
 }
 
 function DragTooltip({
@@ -316,18 +387,9 @@ function DragTooltip({
   const boxW = Math.max(96, label.length * 6.6 + 16);
   const boxH = 24;
   const boxY = y - boxH - 8;
-  const left = cx - boxW / 2;
   return (
     <g style={{ pointerEvents: "none" }}>
-      <rect
-        x={left}
-        y={boxY}
-        width={boxW}
-        height={boxH}
-        rx={6}
-        fill={theme.colors.text}
-        opacity={0.92}
-      />
+      <rect x={cx - boxW / 2} y={boxY} width={boxW} height={boxH} rx={6} fill={theme.colors.text} opacity={0.92} />
       <text
         x={cx}
         y={boxY + boxH / 2}

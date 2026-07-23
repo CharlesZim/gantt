@@ -15,10 +15,14 @@
   --grid-strong: #dcdcd8;
   --text: #1f2430;
   --text-muted: #8a8f9c;
-  --today: #ef4444;
-  --weekend: #f4f4f1;
-  --zebra: #fafafa;
+  --today: #e11d48;
+  --weekend: #f6f1ec;
+  --zebra: #fdf9f5;
   --bar-stroke: none;
+  --accent: #d9257e;
+  --accent-alt: #f0a92b;
+  --on-accent: #ffffff;
+  --link: #a2959c;
   --font: "Inter", system-ui, sans-serif;
 }
 
@@ -37,13 +41,39 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Smooth theme transitions on chrome, but never during a drag. */
-.theme-transition,
-.theme-transition * {
-  transition:
-    background-color 200ms ease,
-    border-color 200ms ease,
-    color 200ms ease;
+/* A bar keeps its hover affordances while focused via the keyboard. */
+.gantt-bar-group:focus-visible {
+  outline: none;
+}
+.gantt-bar-group:focus-visible .gantt-handle {
+  opacity: 1;
+}
+.gantt-bar-group:focus-visible .gantt-bar-rect {
+  filter: brightness(1.06);
+}
+
+/* The task list scrolls on its own but hides its bar — the chart pane's
+   scrollbar is the one the user drives. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Checkerboard behind a transparent-background export preview. */
+.checker {
+  background-image:
+    linear-gradient(45deg, rgba(128, 128, 128, 0.18) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(128, 128, 128, 0.18) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(128, 128, 128, 0.18) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(128, 128, 128, 0.18) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
 }
 
 /* Hide number-input spinners in the date fields for a cleaner look. */

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { isHexColor, normalizeHex } from "../core/color";
 import type { Theme } from "../themes/types";
 
 interface ColorPickerProps {
-  anchorRect: DOMRect;
+  /** Element the popover is positioned against; tracked while open. */
+  anchor: HTMLElement;
   palette: string[];
   currentColor: string; // resolved hex currently shown
   isCustom: boolean; // true when the task has an explicit custom color
@@ -16,8 +17,10 @@ interface ColorPickerProps {
 
 const POPOVER_W = 232;
 
+const POPOVER_H = 210;
+
 export function ColorPicker({
-  anchorRect,
+  anchor,
   palette,
   currentColor,
   isCustom,
@@ -28,22 +31,46 @@ export function ColorPicker({
 }: ColorPickerProps) {
   const c = theme.colors;
   const [hex, setHex] = useState(currentColor);
+  const [pos, setPos] = useState({ left: 0, top: 0 });
 
   useEffect(() => setHex(currentColor), [currentColor]);
 
-  // Keep the popover inside the viewport.
-  const pos = useMemo(() => {
+  // Keep the popover glued to its anchor and inside the viewport. Recomputed
+  // on scroll and resize — a rect captured once detaches as soon as the list
+  // behind it moves.
+  const reposition = useCallback(() => {
+    const rect = anchor.getBoundingClientRect();
     const margin = 8;
-    let left = anchorRect.left;
-    let top = anchorRect.bottom + 6;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    if (left + POPOVER_W > vw - margin) left = vw - POPOVER_W - margin;
+    let left = rect.left;
+    let top = rect.bottom + 6;
+    if (left + POPOVER_W > window.innerWidth - margin) {
+      left = window.innerWidth - POPOVER_W - margin;
+    }
     if (left < margin) left = margin;
-    // Flip above if not enough room below.
-    if (top + 210 > vh - margin) top = Math.max(margin, anchorRect.top - 210);
-    return { left, top };
-  }, [anchorRect]);
+    if (top + POPOVER_H > window.innerHeight - margin) {
+      top = Math.max(margin, rect.top - POPOVER_H);
+    }
+    setPos({ left, top });
+  }, [anchor]);
+
+  useLayoutEffect(() => {
+    reposition();
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [reposition]);
+
+  // Escape closes, matching every other popover in the app.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   const commitHex = (value: string) => {
     setHex(value);

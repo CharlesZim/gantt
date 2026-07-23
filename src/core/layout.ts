@@ -11,6 +11,7 @@ import {
   startOfWeek,
   startOfYear,
 } from "date-fns";
+import { fr } from "date-fns/locale";
 import {
   addDaysISO,
   daysBetween,
@@ -21,7 +22,10 @@ import {
   toISO,
   todayISO,
 } from "./dates";
-import type { ISODate, Task, TimeUnit } from "./types";
+import { isMilestone, taskProgress, type ISODate, type Task, type TimeUnit } from "./types";
+
+/** Axis labels are user-facing, so they follow the app locale. */
+const LOCALE = { locale: fr } as const;
 
 export interface LayoutInput {
   tasks: Task[];
@@ -40,6 +44,20 @@ export interface BarLayout {
   y: number;
   width: number;
   height: number;
+  /** True when the task renders as a diamond marker instead of a bar. */
+  milestone: boolean;
+  /** Width of the completed portion, in px. 0 when no progress is set. */
+  progressWidth: number;
+  /** Center of the row, for milestone markers and dependency routing. */
+  cy: number;
+}
+
+/** An elbow-routed finish-to-start dependency arrow. */
+export interface LinkLayout {
+  fromId: string;
+  toId: string;
+  /** Polyline vertices, already in chart coordinates. */
+  points: { x: number; y: number }[];
 }
 
 /** Bottom-level graduation (days / weeks / months depending on unit). */
@@ -60,6 +78,7 @@ export interface AxisSegment {
 
 export interface LayoutResult {
   bars: BarLayout[];
+  links: LinkLayout[];
   ticks: AxisTick[];
   axisTop: AxisSegment[];
   totalWidth: number;
@@ -79,6 +98,44 @@ export const PX_PER_DAY: Record<TimeUnit, number> = {
 
 export function pxPerDayForUnit(unit: TimeUnit): number {
   return PX_PER_DAY[unit];
+}
+
+/**
+ * Elbow route for a finish-to-start link, from the right edge of `from` to the
+ * left edge of `to`. When the successor starts before the predecessor ends the
+ * route detours vertically between the two rows rather than crossing the bars.
+ */
+function routeLink(from: BarLayout, to: BarLayout, rowHeight: number): { x: number; y: number }[] {
+  const STUB = 10; // horizontal stub off each bar edge
+  const x1 = from.x + from.width;
+  const y1 = from.cy;
+  const x2 = to.x;
+  const y2 = to.cy;
+
+  if (x2 - x1 >= STUB * 2) {
+    // Enough room: out, across, in.
+    const midX = x2 - STUB;
+    return [
+      { x: x1, y: y1 },
+      { x: midX, y: y1 },
+      { x: midX, y: y2 },
+      { x: x2, y: y2 },
+    ];
+  }
+
+  // Backwards or tight: drop into the gutter between the two rows and come back.
+  const goingDown = y2 > y1;
+  const gutterY = goingDown
+    ? y1 + rowHeight / 2
+    : y1 - rowHeight / 2;
+  return [
+    { x: x1, y: y1 },
+    { x: x1 + STUB, y: y1 },
+    { x: x1 + STUB, y: gutterY },
+    { x: x2 - STUB, y: gutterY },
+    { x: x2 - STUB, y: y2 },
+    { x: x2, y: y2 },
+  ];
 }
 
 function isWeekend(date: Date): boolean {
@@ -125,7 +182,7 @@ function buildTicks(
       const date = parseISO(iso);
       ticks.push({
         x: i * pxPerDay,
-        label: format(date, "d"),
+        label: format(date, "d", LOCALE),
         major: getDay(date) === 1, // Monday
         date: iso,
       });
@@ -142,7 +199,7 @@ function buildTicks(
       const weekEnd = parseISO(addDaysISO(iso, 6));
       const major = cursor.getMonth() !== weekEnd.getMonth();
       if (daysBetween(rangeStart, iso) >= 0) {
-        ticks.push({ x: xOf(iso), label: format(cursor, "d MMM"), major, date: iso });
+        ticks.push({ x: xOf(iso), label: format(cursor, "d MMM", LOCALE), major, date: iso });
       }
       cursor = addWeeks(cursor, 1);
     }
@@ -156,7 +213,7 @@ function buildTicks(
     if (daysBetween(rangeStart, iso) >= 0) {
       ticks.push({
         x: xOf(iso),
-        label: format(cursor, "MMM"),
+        label: format(cursor, "MMM", LOCALE),
         major: cursor.getMonth() === 0, // January
         date: iso,
       });
@@ -192,7 +249,7 @@ function buildAxisTop(
     const width = spanDays(segStartISO, segEndISO) * pxPerDay;
     // Guard against zero-width periods outside the window.
     if (width > 0 && daysBetween(segStartISO, segEndISO) >= 0) {
-      segments.push({ x, width, label: format(cursor, labelFmt), date: segStartISO });
+      segments.push({ x, width, label: format(cursor, labelFmt, LOCALE), date: segStartISO });
     }
     cursor = next;
   }
@@ -205,12 +262,37 @@ export function computeLayout(input: LayoutInput): LayoutResult {
 
   const { rangeStart, rangeEnd } = computeRange(tasks, padDays, today);
 
-  const bars: BarLayout[] = tasks.map((task) => {
+  // Bars are laid out in the caller's order, not by `task.order`, so a list
+  // that has been filtered or re-sorted still stacks without gaps.
+  const bars: BarLayout[] = tasks.map((task, row) => {
+    const milestone = isMilestone(task);
     const x = daysBetween(rangeStart, task.start) * pxPerDay;
-    const width = spanDays(task.start, task.end) * pxPerDay;
-    const y = task.order * rowHeight + (rowHeight - barHeight) / 2;
-    return { taskId: task.id, x, y, width, height: barHeight };
+    const width = milestone ? pxPerDay : spanDays(task.start, task.end) * pxPerDay;
+    const y = row * rowHeight + (rowHeight - barHeight) / 2;
+    return {
+      taskId: task.id,
+      x,
+      y,
+      width,
+      height: barHeight,
+      milestone,
+      progressWidth: milestone ? 0 : width * taskProgress(task),
+      cy: row * rowHeight + rowHeight / 2,
+    };
   });
+
+  // Dependency arrows. Links pointing at an unknown / self id are dropped.
+  const barById = new Map(bars.map((b) => [b.taskId, b]));
+  const links: LinkLayout[] = [];
+  for (const task of tasks) {
+    for (const depId of task.deps ?? []) {
+      if (depId === task.id) continue;
+      const from = barById.get(depId);
+      const to = barById.get(task.id);
+      if (!from || !to) continue;
+      links.push({ fromId: depId, toId: task.id, points: routeLink(from, to, rowHeight) });
+    }
+  }
 
   const ticks = buildTicks(rangeStart, rangeEnd, unit, pxPerDay);
   const axisTop = buildAxisTop(rangeStart, rangeEnd, unit, pxPerDay);
@@ -237,6 +319,7 @@ export function computeLayout(input: LayoutInput): LayoutResult {
 
   return {
     bars,
+    links,
     ticks,
     axisTop,
     totalWidth,

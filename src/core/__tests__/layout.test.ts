@@ -41,13 +41,16 @@ describe("computeLayout - bars", () => {
     expect(r.bars[0].width).toBe(5 * 40); // 5 inclusive days
   });
 
-  it("stacks rows by order", () => {
+  it("stacks rows by list position, leaving no gap for sparse orders", () => {
+    // `order` may be sparse (a filtered view, a mid-drag list). Rows follow the
+    // array so bars always stay inside totalHeight.
     const tasks = [
       task({ id: "a", start: "2026-07-10", end: "2026-07-10", order: 0 }),
       task({ id: "b", start: "2026-07-10", end: "2026-07-10", order: 2 }),
     ];
     const r = computeLayout({ ...base, tasks });
-    expect(r.bars[1].y).toBe(2 * 44 + (44 - 26) / 2);
+    expect(r.bars[1].y).toBe(1 * 44 + (44 - 26) / 2);
+    expect(r.bars[1].y + r.bars[1].height).toBeLessThanOrEqual(r.totalHeight);
     expect(r.totalHeight).toBe(2 * 44);
   });
 
@@ -119,8 +122,8 @@ describe("computeLayout - axis", () => {
     const tasks = [task({ id: "a", start: "2026-07-28", end: "2026-08-03", order: 0 })];
     const r = computeLayout({ ...base, tasks });
     const labels = r.axisTop.map((s) => s.label);
-    expect(labels).toContain("July 2026");
-    expect(labels).toContain("August 2026");
+    expect(labels).toContain("juillet 2026");
+    expect(labels).toContain("août 2026");
   });
 
   it("builds year segments in month view", () => {
@@ -134,5 +137,63 @@ describe("computeLayout - axis", () => {
     const labels = r.axisTop.map((s) => s.label);
     expect(labels).toContain("2025");
     expect(labels).toContain("2026");
+  });
+});
+
+describe("computeLayout - milestones", () => {
+  it("renders a milestone as a single-day cell with no progress", () => {
+    const tasks = [
+      task({ id: "m", start: "2026-07-10", end: "2026-07-10", order: 0, kind: "milestone", progress: 0.5 }),
+    ];
+    const r = computeLayout({ ...base, tasks });
+    expect(r.bars[0].milestone).toBe(true);
+    expect(r.bars[0].width).toBe(40);
+    expect(r.bars[0].progressWidth).toBe(0);
+    expect(r.bars[0].cy).toBe(44 / 2);
+  });
+
+  it("scales progressWidth with the bar", () => {
+    const tasks = [
+      task({ id: "a", start: "2026-07-10", end: "2026-07-14", order: 0, progress: 0.5 }),
+    ];
+    const r = computeLayout({ ...base, tasks });
+    expect(r.bars[0].progressWidth).toBe(r.bars[0].width / 2);
+  });
+
+  it("clamps out-of-range progress", () => {
+    const tasks = [
+      task({ id: "a", start: "2026-07-10", end: "2026-07-14", order: 0, progress: 4 }),
+      task({ id: "b", start: "2026-07-10", end: "2026-07-14", order: 1, progress: -2 }),
+    ];
+    const r = computeLayout({ ...base, tasks });
+    expect(r.bars[0].progressWidth).toBe(r.bars[0].width);
+    expect(r.bars[1].progressWidth).toBe(0);
+  });
+});
+
+describe("computeLayout - dependency links", () => {
+  const a = task({ id: "a", start: "2026-07-10", end: "2026-07-12", order: 0 });
+
+  it("routes a forward link from the predecessor's end to the successor's start", () => {
+    const b = task({ id: "b", start: "2026-07-16", end: "2026-07-18", order: 1, deps: ["a"] });
+    const r = computeLayout({ ...base, tasks: [a, b] });
+    expect(r.links).toHaveLength(1);
+    const points = r.links[0].points;
+    expect(r.links[0]).toMatchObject({ fromId: "a", toId: "b" });
+    expect(points[0]).toEqual({ x: r.bars[0].x + r.bars[0].width, y: r.bars[0].cy });
+    expect(points[points.length - 1]).toEqual({ x: r.bars[1].x, y: r.bars[1].cy });
+  });
+
+  it("detours through the row gutter when the successor starts too early", () => {
+    const b = task({ id: "b", start: "2026-07-10", end: "2026-07-11", order: 1, deps: ["a"] });
+    const r = computeLayout({ ...base, tasks: [a, b] });
+    // The tight route needs the extra vertical dogleg.
+    expect(r.links[0].points).toHaveLength(6);
+  });
+
+  it("drops links pointing at a missing task or at itself", () => {
+    const b = task({ id: "b", start: "2026-07-16", end: "2026-07-18", order: 1, deps: ["ghost", "b"] });
+    const r = computeLayout({ ...base, tasks: [a, b] });
+    expect(r.links).toHaveLength(0);
   });
 });
